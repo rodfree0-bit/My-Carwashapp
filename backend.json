@@ -1,0 +1,383 @@
+
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user's profile within the CarWash App.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user profile."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "User's first name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "User's last name."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string",
+          "description": "User's phone number."
+        },
+        "role": {
+            "type": "string",
+            "enum": ["admin", "washer"],
+            "description": "The role of the user within the system."
+        }
+      },
+      "required": [
+        "id",
+        "email"
+      ]
+    },
+    "Vehicle": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Vehicle",
+      "type": "object",
+      "description": "Represents a vehicle owned by a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the vehicle."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile."
+        },
+        "make": {
+          "type": "string",
+          "description": "Vehicle make (e.g., Toyota)."
+        },
+        "model": {
+          "type": "string",
+          "description": "Vehicle model (e.g., Camry)."
+        },
+        "year": {
+          "type": "number",
+          "description": "Vehicle year."
+        },
+        "type": {
+            "type": "string",
+            "enum": ["sedan", "suv", "truck"]
+        },
+        "color": {
+            "type": "string"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "URL of the vehicle's photo."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "make",
+        "model",
+        "year",
+        "type"
+      ]
+    },
+    "Address": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Address",
+      "type": "object",
+      "description": "Represents an address associated with a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the address."
+        },
+        "userId": {
+            "type": "string"
+        },
+        "name": {
+            "type": "string"
+        },
+        "street": {
+          "type": "string",
+          "description": "Street address."
+        },
+        "city": {
+          "type": "string",
+          "description": "City."
+        },
+        "state": {
+          "type": "string",
+          "description": "State."
+        },
+        "zipCode": {
+          "type": "string",
+          "description": "Zip code."
+        }
+      },
+      "required": [
+        "id",
+        "street",
+        "city",
+        "state",
+        "zipCode"
+      ]
+    },
+    "CarWashPackage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CarWashPackage",
+      "type": "object",
+      "description": "Represents a car wash package offered.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the car wash package."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the car wash package."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the car wash package."
+        },
+        "prices": {
+          "type": "object",
+          "properties": {
+            "sedan": {"type": "number"},
+            "suv": {"type": "number"},
+            "truck": {"type": "number"}
+          },
+          "required": ["sedan", "suv", "truck"]
+        },
+        "durations": {
+          "type": "object",
+          "description": "Estimated duration in minutes for each vehicle type.",
+          "properties": {
+            "sedan": {"type": "number"},
+            "suv": {"type": "number"},
+            "truck": {"type": "number"}
+          },
+          "required": ["sedan", "suv", "truck"]
+        },
+        "popular": {
+          "type": "boolean"
+        },
+        "imageKey": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "prices",
+        "durations"
+      ]
+    },
+    "AddOn": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AddOn",
+      "type": "object",
+      "description": "Represents an add-on service for car washes.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the add-on."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the add-on."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the add-on."
+        },
+        "prices": {
+          "type": "object",
+          "properties": {
+            "sedan": {"type": "number"},
+            "suv": {"type": "number"},
+            "truck": {"type": "number"}
+          },
+          "required": ["sedan", "suv", "truck"]
+        },
+        "durations": {
+          "type": "object",
+          "description": "Estimated duration in minutes for each vehicle type.",
+          "properties": {
+            "sedan": {"type": "number"},
+            "suv": {"type": "number"},
+            "truck": {"type": "number"}
+          },
+          "required": ["sedan", "suv", "truck"]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "prices",
+        "durations"
+      ]
+    },
+    "Order": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Order",
+      "type": "object",
+      "description": "Represents a car wash order placed by a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the order."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile."
+        },
+        "packageId": {
+          "type": "string",
+          "description": "Reference to CarWashPackage."
+        },
+        "vehicleIds": {
+          "type": "array",
+          "description": "Reference to one or more Vehicles.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "appointmentDateTime": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "orderDate": {
+          "type": "string",
+          "description": "Date the order was placed.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the order (e.g., pending, in progress, completed)."
+        },
+        "addressId": {
+          "type": "string",
+          "description": "Reference to Address."
+        },
+        "price": {
+          "type": "number",
+          "description": "The final price of the order."
+        },
+        "washerId": {
+            "type": "string"
+        },
+        "reviewId": {
+            "type": "string",
+            "description": "Reference to the review for this order, if any."
+        },
+        "appointmentNote": {
+          "type": "string",
+          "description": "Optional note from the customer for the appointment."
+        },
+        "smsReminders": {
+            "type": "boolean",
+            "description": "Indicates if the user opted in for SMS reminders for this order."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "packageId",
+        "vehicleIds",
+        "orderDate",
+        "appointmentDateTime",
+        "status",
+        "price"
+      ]
+    },
+    "Review": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "Review",
+        "type": "object",
+        "description": "Represents a customer review for a completed order.",
+        "properties": {
+            "id": {
+                "type": "string"
+            },
+            "orderId": {
+                "type": "string"
+            },
+            "userId": {
+                "type": "string"
+            },
+            "washerId": {
+                "type": "string"
+            },
+            "rating": {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 5
+            },
+            "comment": {
+                "type": "string"
+            },
+            "createdAt": {
+                "type": "string",
+                "format": "date-time"
+            }
+        },
+        "required": ["id", "orderId", "userId", "rating", "createdAt"]
+    },
+    "Notification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Notification",
+      "type": "object",
+      "description": "Represents a notification sent to a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the notification."
+        },
+        "message": {
+          "type": "string",
+          "description": "Notification message."
+        },
+        "sentDateTime": {
+          "type": "string",
+          "description": "Timestamp of when the notification was sent.",
+          "format": "date-time"
+        },
+        "read": {
+            "type": "boolean"
+        },
+        "orderId": {
+            "type": "string"
+        },
+        "type": {
+            "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "message",
+        "sentDateTime"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "phone",
+      "anonymous"
+    ],
+    "customClaims": [
+      {
+        "name": "role",
+        "type": "string",
+        "enum": ["admin", "washer"]
+      }
+    ]
+  }
+}
