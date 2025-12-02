@@ -12,6 +12,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
+import { supabase } from '../config/supabase';
 import { LOGO_URL } from '../assets/logo';
 import { useRouter } from 'next/router';
 
@@ -81,157 +82,6 @@ export default function Login() {
   // Owner Key (configurable por ENV con bypass opcional en desarrollo)
   const OWNER_KEY = process.env.NEXT_PUBLIC_OWNER_KEY || 'OWNER-2024';
   const ALLOW_OWNER_BYPASS = (process.env.NEXT_PUBLIC_ALLOW_OWNER_BYPASS === 'true');
-
-  // REGISTRO con verificación por email o teléfono
-  const handleRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // En handleRegisterSubmit: evita doble envío y valida reCAPTCHA antes de SMS
-    if (isLoading) return;
-    setError('');
-    setIsLoading(true);
-
-    try {
-      console.log('🔵 Iniciando registro...');
-
-      // Validaciones mínimas
-      if (!firstName.trim() || !lastName.trim() || !address.trim() || !city.trim() || !state.trim() || !zipCode.trim()) {
-        setError('Completa todos los campos de dirección');
-        setIsLoading(false);
-        return;
-      }
-      if (password !== confirmPassword) {
-        setError('Las contraseñas no coinciden');
-        setIsLoading(false);
-        return;
-      }
-      
-      if (password.length < 6) {
-        setError('La contraseña debe tener al menos 6 caracteres');
-        setIsLoading(false);
-        return;
-      }
-
-      // VALIDAR OWNER KEY si elige cuenta de dueño
-      if (accountType === 'owner') {
-        if (!ownerKey.trim()) {
-          setError('Ingresa la clave de propietario');
-          setIsLoading(false);
-          return;
-        }
-        if (ownerKey.trim() !== OWNER_KEY && !ALLOW_OWNER_BYPASS) {
-          setError('Clave de propietario inválida');
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      const emailSanitized = email.trim().toLowerCase();
-      console.log('🔵 Email:', emailSanitized);
-
-      // Crear usuario con email/password
-      console.log('🔵 Creando usuario en Firebase Auth...');
-      const cred = await createUserWithEmailAndPassword(auth, emailSanitized, password);
-      console.log('✅ Usuario creado:', cred.user.uid);
-      
-      await updateProfile(cred.user, { displayName: `${firstName.trim()} ${lastName.trim()}` });
-      console.log('✅ Perfil actualizado');
-
-      // Guardar datos en Firestore con el rol elegido
-      console.log('🔵 Guardando en Firestore...');
-      try {
-        await setDoc(doc(db, 'users', cred.user.uid), {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          address: address.trim(),
-          city: city.trim(),
-          state: state.trim(),
-          zipCode: zipCode.trim(),
-          phone: phone.trim(),
-          email: emailSanitized,
-          role: accountType,
-          phoneVerified: false,
-          createdAt: serverTimestamp()
-        }, { merge: true });
-        console.log('✅ Datos guardados en Firestore');
-      } catch (wErr: any) {
-        console.error('❌ Firestore setDoc error:', wErr);
-        if (wErr?.code === 'permission-denied') {
-          setError('No tienes permisos para escribir en Firestore. Revisa las reglas.');
-        } else if (wErr?.code === 'unavailable' || wErr?.message?.includes('offline')) {
-          setError('Firestore sin conexión. Revisa internet o reglas.');
-        } else {
-          setError('Error guardando perfil en Firestore. ' + (wErr?.message || 'Intenta nuevamente'));
-        }
-        setIsLoading(false);
-        // Cerrar sesión del usuario recién creado para evitar estado intermedio
-        try { await signOut(auth); } catch {}
-        return;
-      }
-
-      if (verifyMethod === 'email') {
-        // Verificación por email: NO cerrar sesión; guiar a verificación
-        try {
-          await sendEmailVerification(cred.user);
-        } catch (emailErr) {
-          console.error('⚠️ Error enviando correo:', emailErr);
-        }
-        setAwaitingEmailVerification(true); // NUEVO
-        setError(`Te enviamos un correo de verificación a ${emailSanitized}. Abre el enlace y luego presiona "Verificar ahora".`);
-        return; // salir sin cambiar de modo
-      } else {
-        // Verificación por teléfono con OTP
-        const cleanPhone = phone.replace(/\D/g, '');
-        const raw = '+' + cleanPhone;
-
-        // ...existing code validaciones...
-
-        const appVerifier = ensureRecaptcha();
-        if (!appVerifier) {
-          setError('No se pudo inicializar reCAPTCHA. Recarga la página e intenta nuevamente.');
-          await signOut(auth);
-          setIsLoading(false);
-          return;
-        }
-        try {
-          const confirmation = await linkWithPhoneNumber(cred.user, raw, appVerifier);
-          confirmationRef.current = confirmation;
-          setAwaitingOtp(true);
-          setError('✅ Te enviamos un SMS con el código. Ingresa el código para verificar tu teléfono.');
-        } catch (smsErr: any) {
-          console.error('SMS send error:', smsErr);
-          setError('No se pudo enviar el SMS. Verifica tu número (+1...) y vuelve a intentar.');
-          await signOut(auth);
-        }
-      }
-    } catch (err: any) {
-      console.error('❌ Error de registro completo:', err);
-      console.error('Código:', err?.code);
-      console.error('Mensaje:', err?.message);
-      
-      switch (err?.code) {
-        case 'auth/email-already-in-use':
-          setError('Este correo ya está registrado. Intenta iniciar sesión.');
-          break;
-        case 'auth/invalid-email':
-          setError('Correo electrónico inválido');
-          break;
-        case 'auth/weak-password':
-          setError('La contraseña debe tener al menos 6 caracteres');
-          break;
-        case 'auth/too-many-requests':
-          setError('Demasiados intentos. Intenta más tarde.');
-          break;
-        case 'auth/network-request-failed':
-          setError('Error de conexión. Verifica tu internet.');
-          break;
-        default:
-          setError('Error: ' + (err?.message || 'Intenta nuevamente'));
-      }
-    } finally {
-      setIsLoading(false);
-      console.log('🔵 Proceso finalizado');
-    }
-  };
 
   // Confirmar OTP de teléfono (registro)
   const handleConfirmOtp = async (e: React.FormEvent) => {
@@ -322,23 +172,26 @@ export default function Login() {
       const userCredential = await signInWithEmailAndPassword(auth, emailSanitized, password);
       console.log('✅ Login exitoso, UID:', userCredential.user.uid);
 
-      // Leer rol desde Firestore (funciona en producción)
+      // Leer rol desde SUPABASE (en lugar de Firestore)
       let userRole: string = 'customer';
       try {
-        console.log('🔵 Leyendo rol desde Firestore...');
-        const profileSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
-        if (profileSnap.exists()) {
-          const d = profileSnap.data() as any;
-          userRole = d?.role || 'customer';
-          console.log('✅ Rol obtenido:', userRole);
-        } else {
-          console.log('⚠️ Documento no existe, usando customer por defecto');
+        console.log('🔵 Leyendo rol desde Supabase...');
+        const { data, error } = await supabase
+          .from('users')
+          .select('role')
+          .eq('uid', userCredential.user.uid)
+          .single();
+
+        if (error) throw error;
+        
+        if (data && data.role) {
+          userRole = data.role;
+          console.log('✅ Rol obtenido desde Supabase:', userRole);
         }
-      } catch (firestoreErr: any) {
-        console.error('❌ Error leyendo Firestore:', firestoreErr);
-        // Fallback: intentar detectar por displayName
-        const displayName = userCredential.user.displayName || '';
-        if (displayName.toLowerCase().includes('owner') || emailSanitized.includes('owner')) {
+      } catch (supabaseErr: any) {
+        console.error('❌ Error leyendo Supabase:', supabaseErr);
+        // Fallback: detectar por email
+        if (emailSanitized.includes('owner')) {
           userRole = 'owner';
         }
       }
@@ -393,6 +246,154 @@ export default function Login() {
     } finally {
       setIsLoading(false);
       console.log('🔵 Login proceso finalizado');
+    }
+  };
+
+  // REGISTRO con Supabase
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // En handleRegisterSubmit: evita doble envío y valida reCAPTCHA antes de SMS
+    if (isLoading) return;
+    setError('');
+    setIsLoading(true);
+
+    try {
+      console.log('🔵 Iniciando registro...');
+
+      // Validaciones mínimas
+      if (!firstName.trim() || !lastName.trim() || !address.trim() || !city.trim() || !state.trim() || !zipCode.trim()) {
+        setError('Completa todos los campos de dirección');
+        setIsLoading(false);
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('Las contraseñas no coinciden');
+        setIsLoading(false);
+        return;
+      }
+      
+      if (password.length < 6) {
+        setError('La contraseña debe tener al menos 6 caracteres');
+        setIsLoading(false);
+        return;
+      }
+
+      // VALIDAR OWNER KEY si elige cuenta de dueño
+      if (accountType === 'owner') {
+        if (!ownerKey.trim()) {
+          setError('Ingresa la clave de propietario');
+          setIsLoading(false);
+          return;
+        }
+        if (ownerKey.trim() !== OWNER_KEY && !ALLOW_OWNER_BYPASS) {
+          setError('Clave de propietario inválida');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      const emailSanitized = email.trim().toLowerCase();
+      console.log('🔵 Email:', emailSanitized);
+
+      // Crear usuario con email/password
+      console.log('🔵 Creando usuario en Firebase Auth...');
+      const cred = await createUserWithEmailAndPassword(auth, emailSanitized, password);
+      console.log('✅ Usuario creado:', cred.user.uid);
+      
+      await updateProfile(cred.user, { displayName: `${firstName.trim()} ${lastName.trim()}` });
+      console.log('✅ Perfil actualizado');
+
+      // Guardar datos en SUPABASE (en lugar de Firestore)
+      console.log('🔵 Guardando en Supabase...');
+      try {
+        const { error: supabaseError } = await supabase
+          .from('users')
+          .insert({
+            uid: cred.user.uid,
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            address: address.trim(),
+            city: city.trim(),
+            state: state.trim(),
+            zip_code: zipCode.trim(),
+            phone: phone.trim(),
+            email: emailSanitized,
+            role: accountType,
+            phone_verified: false
+          });
+
+        if (supabaseError) throw supabaseError;
+        console.log('✅ Datos guardados en Supabase');
+      } catch (wErr: any) {
+        console.error('❌ Supabase insert error:', wErr);
+        setError('Error guardando perfil. ' + (wErr?.message || 'Intenta nuevamente'));
+        setIsLoading(false);
+        try { await signOut(auth); } catch {}
+        return;
+      }
+
+      if (verifyMethod === 'email') {
+        // Verificación por email: NO cerrar sesión; guiar a verificación
+        try {
+          await sendEmailVerification(cred.user);
+        } catch (emailErr) {
+          console.error('⚠️ Error enviando correo:', emailErr);
+        }
+        setAwaitingEmailVerification(true); // NUEVO
+        setError(`Te enviamos un correo de verificación a ${emailSanitized}. Abre el enlace y luego presiona "Verificar ahora".`);
+        return; // salir sin cambiar de modo
+      } else {
+        // Verificación por teléfono con OTP
+        const cleanPhone = phone.replace(/\D/g, '');
+        const raw = '+' + cleanPhone;
+
+        // ...existing code validaciones...
+
+        const appVerifier = ensureRecaptcha();
+        if (!appVerifier) {
+          setError('No se pudo inicializar reCAPTCHA. Recarga la página e intenta nuevamente.');
+          await signOut(auth);
+          setIsLoading(false);
+          return;
+        }
+        try {
+          const confirmation = await linkWithPhoneNumber(cred.user, raw, appVerifier);
+          confirmationRef.current = confirmation;
+          setAwaitingOtp(true);
+          setError('✅ Te enviamos un SMS con el código. Ingresa el código para verificar tu teléfono.');
+        } catch (smsErr: any) {
+          console.error('SMS send error:', smsErr);
+          setError('No se pudo enviar el SMS. Verifica tu número (+1...) y vuelve a intentar.');
+          await signOut(auth);
+        }
+      }
+    } catch (err: any) {
+      console.error('❌ Error de registro completo:', err);
+      console.error('Código:', err?.code);
+      console.error('Mensaje:', err?.message);
+      
+      switch (err?.code) {
+        case 'auth/email-already-in-use':
+          setError('Este correo ya está registrado. Intenta iniciar sesión.');
+          break;
+        case 'auth/invalid-email':
+          setError('Correo electrónico inválido');
+          break;
+        case 'auth/weak-password':
+          setError('La contraseña debe tener al menos 6 caracteres');
+          break;
+        case 'auth/too-many-requests':
+          setError('Demasiados intentos. Intenta más tarde.');
+          break;
+        case 'auth/network-request-failed':
+          setError('Error de conexión. Verifica tu internet.');
+          break;
+        default:
+          setError('Error: ' + (err?.message || 'Intenta nuevamente'));
+      }
+    } finally {
+      setIsLoading(false);
+      console.log('🔵 Proceso finalizado');
     }
   };
 
