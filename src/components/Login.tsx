@@ -316,25 +316,49 @@ export default function Login() {
     setIsLoading(true);
 
     try {
+      console.log('🔵 Iniciando login...');
       const emailSanitized = email.trim().toLowerCase();
+      
       const userCredential = await signInWithEmailAndPassword(auth, emailSanitized, password);
-      
-      // MODO OFFLINE: Usar solo displayName para detectar rol
+      console.log('✅ Login exitoso, UID:', userCredential.user.uid);
+
+      // Leer rol desde Firestore (funciona en producción)
       let userRole: string = 'customer';
-      
-      // Si el displayName contiene "owner", es owner
-      const displayName = userCredential.user.displayName || '';
-      if (displayName.toLowerCase().includes('owner') || emailSanitized.includes('owner')) {
-        userRole = 'owner';
+      try {
+        console.log('🔵 Leyendo rol desde Firestore...');
+        const profileSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
+        if (profileSnap.exists()) {
+          const d = profileSnap.data() as any;
+          userRole = d?.role || 'customer';
+          console.log('✅ Rol obtenido:', userRole);
+        } else {
+          console.log('⚠️ Documento no existe, usando customer por defecto');
+        }
+      } catch (firestoreErr: any) {
+        console.error('❌ Error leyendo Firestore:', firestoreErr);
+        // Fallback: intentar detectar por displayName
+        const displayName = userCredential.user.displayName || '';
+        if (displayName.toLowerCase().includes('owner') || emailSanitized.includes('owner')) {
+          userRole = 'owner';
+        }
       }
 
-      console.log('✅ Login exitoso, rol:', userRole);
+      console.log('🔵 Redirigiendo según rol:', userRole);
 
       // Redirigir según el rol
-      if (userRole === 'owner') {
-        await router.push('/owner');
-      } else {
-        await router.push('/customer-dashboard');
+      switch (userRole) {
+        case 'owner':
+          await router.push('/owner');
+          break;
+        case 'admin':
+          await router.push('/admin/orders');
+          break;
+        case 'worker':
+        case 'washer':
+          await router.push('/washer/orders');
+          break;
+        default:
+          await router.push('/customer-dashboard');
       }
     } catch (err: any) {
       console.error('❌ Error de login completo:', err);
