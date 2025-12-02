@@ -1,20 +1,19 @@
-
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogDescription,
   DialogFooter,
-  DialogClose,
-  DialogDescription
+  DialogClose
 } from "@/components/ui/dialog";
-import { useUser, useFirestore, addDocumentNonBlocking } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { Button } from "@/components/ui/button";
+import { db, auth } from "@/config/firebase";
+import { collection, addDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -37,9 +36,7 @@ export function AddAddressDialog({ children, onAddressAdded }: { children?: Reac
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const firestore = useFirestore();
-  const { user } = useUser();
-
+  
   const form = useForm<AddressFormValues>({
       resolver: zodResolver(addressSchema),
       defaultValues: {
@@ -51,26 +48,28 @@ export function AddAddressDialog({ children, onAddressAdded }: { children?: Reac
       }
   });
 
-  const onSubmit = (data: AddressFormValues) => {
-    // In demo mode, we use a static ID if the user is not logged in
-    const userId = user?.uid || 'user-demo-id';
-    if (!userId || !firestore) {
-        toast({ title: "Error", description: "No se pudo conectar a la base de datos.", variant: "destructive" });
-        return;
+  const onSubmit = async (data: AddressFormValues) => {
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: "Error", description: "No autenticado" });
+      return;
     }
-    
     setIsSaving(true);
-    const addressesRef = collection(firestore, 'users', userId, 'addresses');
-    addDocumentNonBlocking(addressesRef, data);
-
-    toast({
-        title: "¡Dirección Añadida!",
-        description: "Tu nueva dirección ha sido añadida a tu perfil.",
-    });
-    form.reset();
-    onAddressAdded?.(); // Call the callback function
-    setOpen(false); // Close the dialog
-    setIsSaving(false);
+    try {
+      await addDoc(collection(db, "addresses"), {
+        ...data,
+        userId: user.uid,
+        createdAt: new Date()
+      });
+      toast({ title: "¡Dirección Añadida!", description: "Tu nueva dirección ha sido añadida a tu perfil." });
+      form.reset();
+      onAddressAdded?.();
+      setOpen(false);
+    } catch (error) {
+      toast({ title: "Error", description: "Ocurrió un error al añadir la dirección.", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
